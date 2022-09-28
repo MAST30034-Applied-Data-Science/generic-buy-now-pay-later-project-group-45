@@ -134,3 +134,5 @@ data/raw/
 
 # OSX .DS_Store file
 .DS_Store
+
+data/tables/censusData
