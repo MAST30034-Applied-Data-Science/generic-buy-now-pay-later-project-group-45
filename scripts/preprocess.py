@@ -1,6 +1,7 @@
 import sys
 from pyspark.sql import functions as F
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import lpad
 import os
 import re
 import urllib.request
@@ -101,16 +102,23 @@ transactions = transactions.filter(F.col("order_datetime")>"2021-02-27")
 ################## Download census data #####################
 
 ABS_INCOME_URL = 'https://www.abs.gov.au/census/find-census-data/datapacks/download/2021_GCP_POA_for_AUS_short-header.zip'
+ABS_INCOME_URL_STATE = 'https://www.abs.gov.au/census/find-census-data/datapacks/download/2021_GCP_STE_for_AUS_short-header.zip'
 ABS_DATA_Dir = data_directory+"/censusData"
 
 # read the zip file, unzip the folder and export files in censusData folder
 with urllib.request.urlopen(ABS_INCOME_URL) as zipresp:
     with ZipFile(BytesIO(zipresp.read())) as zfile:
         zfile.extractall(ABS_DATA_Dir)
+# read the zip file, unzip the folder and export files in censusData folder
+with urllib.request.urlopen(ABS_INCOME_URL_STATE) as zipresp:
+    with ZipFile(BytesIO(zipresp.read())) as zfile:
+        zfile.extractall(ABS_DATA_Dir)
 
 ################## read census data #####################
 census = spark.read.csv(data_directory+"/censusData/2021Census_G02_AUST_POA.csv", header = True)
 
+
+census_state = spark.read.csv(data_directory+"/censusData/2021 Census GCP States and Territories for AUS/2021Census_G02_AUST_STE.csv", header = True)
 # remove POA prefix to obtain only numeric postcodes
 census = census.withColumn("postcode", F.regexp_replace("POA_CODE_2021", "POA", ""))
 
@@ -140,9 +148,52 @@ data_with_fraud = data_with_fraud.join(merchant_fraud, on = ["merchant_abn","ord
 full_dataset_filna = data_with_fraud.withColumn("fraud_prob_cons", F.col("fraud_prob_cons").cast("float")).fillna(0.001)
 full_dataset_filna = full_dataset_filna.withColumn("fraud_prob_merch", F.col("fraud_prob_merch").cast("float")).fillna(0.001)
 
-full_dataset = full_dataset_filna.join(census, on = ["postcode"], how = "left")
-full_dataset = full_dataset.drop("POA_CODE_2021", "order_id")
 
+# there are postcodes that has only three digits
+# adding lead zeros for post code
+
+data_remove_fraud = full_dataset_filna.withColumn('postcode',lpad(full_dataset_filna['postcode'],4,'0'))
+
+full_dataset = data_remove_fraud.join(census, on = ["postcode"], how = "left")
+
+full_dataset = full_dataset.withColumn('postcode',lpad(full_dataset['postcode'],4,'0'))
+
+full_dataset = full_dataset.drop("POA_CODE_2021")
+
+dataset_with_null = full_dataset.filter(F.col("Median_tot_prsnl_inc_weekly").isNull()).groupby("postcode").count()
+
+full_dataset = full_dataset.filter(F.col("Median_tot_prsnl_inc_weekly").isNotNull())
+
+
+
+# for the unseen postcodes in the transactions, it will be allocated with average income of that state
+dataset_with_null = dataset_with_null.withColumn(
+    'STE_CODE_2021',
+    F.when(((F.col("postcode") >= 1000) & (F.col("postcode") <= 2599 )) | ((F.col("postcode") >= 2619) & (F.col("postcode") <= 2898 )) | ((F.col("postcode") >= 2921) & (F.col("postcode") <= 2999 )), 1)\
+
+    .when(((F.col("postcode") >= '0200') & (F.col("postcode") <= '0299' )) | ((F.col("postcode") >= 2600) & (F.col("postcode") <= 2618 )) | ((F.col("postcode") >= 2900) & (F.col("postcode") <= 2920 )), 8)\
+
+    .when(((F.col("postcode") >= 3000) & (F.col("postcode") <= 3999 )) | ((F.col("postcode") >= 8000) & (F.col("postcode") <= 8999 )),2)\
+
+    .when(((F.col("postcode") >= 4000) & (F.col("postcode") <= 4999 )) | ((F.col("postcode") >= 9000) & (F.col("postcode") <= 9999 )),3)\
+
+    .when(((F.col("postcode") >= 5000) & (F.col("postcode") <= 5999  )),4)\
+
+    .when(((F.col("postcode") >= 6000) & (F.col("postcode") <= 6797 )) | ((F.col("postcode") >= 6800) & (F.col("postcode") <= 6999 )),5)\
+
+    .when(((F.col("postcode") >= 7000) & (F.col("postcode") <= 8000 )), 6)\
+    
+    .otherwise(7)
+)
+
+
+dataset_with_null = dataset_with_null.join(census_state, ['STE_CODE_2021']).drop("STE_CODE_2021","count")
+
+dataset_with_null = data_remove_fraud.join(dataset_with_null, on = ["postcode"], how = "right")
+
+full_dataset = full_dataset.union(dataset_with_null)
+
+full_dataset = full_dataset.drop("order_id")
 
 
 # remove some of the merchants that have little transaction and sales amount
