@@ -325,8 +325,10 @@ gender = gender.withColumn("ap_percentage_by_gender", F.col("male_consumer_perce
 
 
 # merge the proportion dataframe
-agg_df.join(gender, on=["male_consumer_percentage", "female_consumer_percentage","undisclosed_consumer_percentage"]).drop("male_consumer_percentage", "female_consumer_percentage", "undisclosed_consumer_percentage")
+agg_df = agg_df.join(gender, on=["male_consumer_percentage", "female_consumer_percentage","undisclosed_consumer_percentage"]).drop("male_consumer_percentage", "female_consumer_percentage", "undisclosed_consumer_percentage")
 
+turnover_df=spark.createDataFrame(turnover)
+agg_df = agg_df.join(turnover_df, on="business_area_type", how="left")
 
 # save dataset
 agg_df.write.mode("overwrite").parquet(output_directory+"/final_dataset/")
