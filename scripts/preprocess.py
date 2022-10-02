@@ -243,6 +243,8 @@ allocation_sdf=spark.createDataFrame(allocation_df)
 # add the business_area_type into clean_full_dataset
 clean_full_dataset = clean_full.join(allocation_sdf, clean_full.business_area == allocation_sdf.business_area).drop(allocation_sdf.business_area)
 
+# save dataset
+clean_full_dataset.write.mode("overwrite").parquet(output_directory+"/clean_full_dataset/")
 
 
 
@@ -286,7 +288,7 @@ temp = clean_full_dataset.groupBy("merchant_abn") \
      )
 
 agg_df = agg_df.join(temp, on="merchant_abn")
-temp2 = clean_full_dataset.select("merchant_abn","name", "business_area", "revenue_level", "take_rate")
+temp2 = clean_full_dataset.select("merchant_abn","name", "business_area", "revenue_level", "take_rate", "business_area_type")
 agg_df = agg_df.join(temp2, on="merchant_abn")
 agg_df = agg_df.distinct()
 agg_df = agg_df.drop("avg_comsumer_age")
@@ -327,4 +329,4 @@ agg_df.join(gender, on=["male_consumer_percentage", "female_consumer_percentage"
 
 
 # save dataset
-agg_df.write.mode("overwrite").parquet(output_directory+"/clean_full_dataset/")
+agg_df.write.mode("overwrite").parquet(output_directory+"/final_dataset/")
