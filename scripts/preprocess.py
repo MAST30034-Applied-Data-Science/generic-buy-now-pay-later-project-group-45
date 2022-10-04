@@ -358,5 +358,26 @@ agg_df = agg_df.join(gender, on=["male_consumer_percentage", "female_consumer_pe
 turnover_df=spark.createDataFrame(turnover)
 agg_df = agg_df.join(turnover_df, on="business_area_type", how="left")
 
+################## add fraud rate of each merchant #################
+# select only fraud column
+full_fraud_data = clean_full_dataset.select("merchant_abn", "fraud_prob_cons", "fraud_prob_merch")
+full_fraud_data = full_fraud_data.withColumn("fraud", F.when((F.col("fraud_prob_cons") > 0.0011) | (F.col("fraud_prob_merch") > 0.0011),1).otherwise(0))
+fraud = full_fraud_data.select("merchant_abn", "fraud")
+
+fraud_count = fraud.filter(F.col("fraud")==1).groupby("merchant_abn", "fraud").count().orderBy("merchant_abn")
+fraud_count = fraud_count.select("merchant_abn", "count")
+total_merchant_transaction = fraud.groupby("merchant_abn").count().orderBy("merchant_abn")
+total_merchant_transaction = total_merchant_transaction.withColumnRenamed("count","total_transaction")
+
+fraud = fraud_count.join(total_merchant_transaction, on="merchant_abn").orderBy("merchant_abn")
+fraud = fraud.withColumn("fraud_rate", F.col("count")/F.col("total_transaction"))
+fraud = fraud.drop("count", "total_transaction")
+
+agg_df = agg_df.join(fraud, on="merchant_abn")
+
+agg_df = agg_df.drop("fraud_prob_cons", "fraud_prob_merch", ).distinct()
+
+
+
 # save dataset
 agg_df.write.mode("overwrite").parquet(output_directory+"/final_dataset/")
