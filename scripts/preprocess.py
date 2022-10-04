@@ -11,11 +11,19 @@ import pandas as pd
 from sklearn import preprocessing
 import numpy as np
 
-# split command line by space to obtain data/output directory
-data_directory = sys.argv[2]
-output_directory = sys.argv[4]
 
-arr = os.listdir(data_directory)
+# read command line input, and store working directories for data folder and export folder
+directory = []
+for i in sys.argv:
+    if re.match(r"[\/\w+]+", i):
+       directory.append(i)
+
+data_directory = directory[1]
+output_directory = directory[2]
+
+#
+file_name = os.listdir(data_directory)
+
 
 # create preprocess spark session
 spark = (
@@ -77,26 +85,43 @@ transaction_name_pattern = re.compile("transactions_[0-9]{8}_[0-9]{8}_snapshot")
 
 
 transaction_name = []
+transaction_time = []
 # record names that match transaction name pattern
-for name in arr:
+for name in file_name:
     if (transaction_name_pattern.match(name)):
         transaction_name.append(name)
+        date = name.split("_")
+        transaction_time.append(date[1])
+        transaction_time.append(date[2])
 
-transactions = spark.read.parquet(data_directory+"/"+transaction_name[0])
-        
-for i in range(1, len(transaction_name)):
-    data = spark.read.parquet(data_directory+"/"+transaction_name[i])
-    transactions = transactions.union(data)
 
 
 ################## preprocess steps for transaction data #####################
 
-transactions = transactions.filter(F.col("order_datetime")<"2022-09-01")
-transactions = transactions.filter(F.col("order_datetime")>"2021-02-27")
+# read a dataset first for future joining dataset
+transactions = spark.read.parquet(data_directory+"/"+transaction_name[0])
 
-# full_transaction_dataset = full_transaction_dataset.join(final_merchant, on = "merchant_abn")
-## if need transaction count for a year, add following colde
-# annual_transaction = transactions.filter(F.col("order_datetime")>"2021-08-27")
+# get start and end date of this patch of data, and filter the dataset to obtain transaction within this period
+start_date = transaction_time[0][:4]+"-"+transaction_time[0][4:6]+"-"+transaction_time[0][6:]
+end_date = transaction_time[1][:4]+"-"+transaction_time[1][4:6]+"-"+transaction_time[1][6:]
+transactions = transactions.filter(F.col("order_datetime")<end_date)
+transactions = transactions.filter(F.col("order_datetime")>start_date)
+
+
+for i in range(1, len(transaction_name)):
+    # read new 6 months data
+    data = spark.read.parquet(data_directory+"/"+transaction_name[i])
+    
+    # get the start and end date of the 6 month transaction
+    start_date = transaction_time[i*2][:4]+"-"+transaction_time[i*2][4:6]+"-"+transaction_time[i*2][6:]
+    end_date = transaction_time[i*2+1][:4]+"-"+transaction_time[i*2+1][4:6]+"-"+transaction_time[i*2+1][6:]
+    
+    # filter the 6 month dataset so transactions are within the date boundary
+    data = data.filter(F.col("order_datetime")<end_date)
+    data = data.filter(F.col("order_datetime")>start_date)
+    
+    # union the monthly transaction
+    transactions = transactions.union(data)
 
 
 ################## Download census data #####################
@@ -114,9 +139,9 @@ with urllib.request.urlopen(ABS_INCOME_URL_STATE) as zipresp:
     with ZipFile(BytesIO(zipresp.read())) as zfile:
         zfile.extractall(ABS_DATA_Dir)
 
+
 ################## read census data #####################
 census = spark.read.csv(data_directory+"/censusData/2021Census_G02_AUST_POA.csv", header = True)
-
 
 census_state = spark.read.csv(data_directory+"/censusData/2021 Census GCP States and Territories for AUS/2021Census_G02_AUST_STE.csv", header = True)
 # remove POA prefix to obtain only numeric postcodes
@@ -125,6 +150,7 @@ census = census.withColumn("postcode", F.regexp_replace("POA_CODE_2021", "POA", 
 
 ################## read fraud dataset ####################################
 merchant_fraud = spark.read.csv(data_directory+"/merchant_fraud_probability.csv", header = True)
+
 # rename fraud_probability so it's distinct from consumer's
 merchant_fraud = merchant_fraud.withColumnRenamed("fraud_probability","fraud_prob_merch")
 
@@ -136,10 +162,12 @@ consumer_fraud = consumer_fraud.withColumnRenamed("fraud_probability","fraud_pro
 
 # consumer name and adddress is no longer useful
 consumer = consumer.drop("name","address")
+
 # join consumer and merchant data with transaction
 consumer_transaction= transactions.join(consumer, on = "user_id",how="inner")
-transaction_merch_cons = consumer_transaction.join(final_merchant,on = ["merchant_abn"])
 
+# joining merchants on merchant_abn from merchant data will remove merchants that are not listed but appears in transaction
+transaction_merch_cons = consumer_transaction.join(final_merchant,on = ["merchant_abn"])
 
 data_with_fraud = transaction_merch_cons.join(consumer_fraud, on = ["user_id","order_datetime"], how = "left")
 data_with_fraud = data_with_fraud.join(merchant_fraud, on = ["merchant_abn","order_datetime"], how = "left")
