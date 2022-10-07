@@ -33,7 +33,7 @@ for i in sys.argv:
        directory.append(i)
 
 data_directory = directory[1]
-output_directory = directory[2]+"/rank"
+output_directory = directory[1]+"/rank"
 
 
 
