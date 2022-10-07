@@ -134,6 +134,7 @@ ABS_DATA_Dir = data_directory+"/censusData"
 with urllib.request.urlopen(ABS_INCOME_URL) as zipresp:
     with ZipFile(BytesIO(zipresp.read())) as zfile:
         zfile.extractall(ABS_DATA_Dir)
+        
 # read the zip file, unzip the folder and export files in censusData folder
 with urllib.request.urlopen(ABS_INCOME_URL_STATE) as zipresp:
     with ZipFile(BytesIO(zipresp.read())) as zfile:
@@ -141,7 +142,8 @@ with urllib.request.urlopen(ABS_INCOME_URL_STATE) as zipresp:
 
 
 ################## read census data #####################
-census = spark.read.csv(data_directory+"/censusData/2021Census_G02_AUST_POA.csv", header = True)
+
+census = spark.read.csv(data_directory+"/censusData/2021 Census GCP Postal Areas for AUS/2021Census_G02_AUST_POA.csv", header = True)
 
 census_state = spark.read.csv(data_directory+"/censusData/2021 Census GCP States and Territories for AUS/2021Census_G02_AUST_STE.csv", header = True)
 # remove POA prefix to obtain only numeric postcodes
