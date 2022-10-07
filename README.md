@@ -5,7 +5,9 @@ Note to groups: Make sure to read the `README.md` located in `./data/README.md` 
 
 Run the code in following process
 1. Run preprocess.py in script folder, command line in terminal should follow the structure of: 
+2. 
 python3 path/to/preprocess.py —-path /path/to/project/raw_data/tables --output /path/to/data/curated/folder
 
 2. Run ranking.py in script folder, command line in terminal should follow the structure of: 
+3. 
 python3 path/to/ranking.py —-path /path/to/project/curated_data/ --output /path/to/ranking/folder
