@@ -136,5 +136,5 @@ data/raw/
 .DS_Store
 
 data/tables/censusData
-data/POA_2021_AUST_GDA2020_SHP
 plots/melbourne_postcode_average_transaction.html
+data/tables/POA_2021_AUST_GDA2020_SHP
