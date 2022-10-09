@@ -4,9 +4,6 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import lpad
 import os
 import re
-import urllib.request
-from zipfile import ZipFile
-from io import BytesIO
 import pandas as pd
 from sklearn import preprocessing
 import numpy as np
@@ -126,21 +123,7 @@ for i in range(1, len(transaction_name)):
     transactions = transactions.union(data)
 
 
-################## Download census data #####################
 
-ABS_INCOME_URL = 'https://www.abs.gov.au/census/find-census-data/datapacks/download/2021_GCP_POA_for_AUS_short-header.zip'
-ABS_INCOME_URL_STATE = 'https://www.abs.gov.au/census/find-census-data/datapacks/download/2021_GCP_STE_for_AUS_short-header.zip'
-ABS_DATA_Dir = data_directory+"/censusData"
-
-# read the zip file, unzip the folder and export files in censusData folder
-with urllib.request.urlopen(ABS_INCOME_URL) as zipresp:
-    with ZipFile(BytesIO(zipresp.read())) as zfile:
-        zfile.extractall(ABS_DATA_Dir)
-        
-# read the zip file, unzip the folder and export files in censusData folder
-with urllib.request.urlopen(ABS_INCOME_URL_STATE) as zipresp:
-    with ZipFile(BytesIO(zipresp.read())) as zfile:
-        zfile.extractall(ABS_DATA_Dir)
 
 
 ################## read census data #####################
