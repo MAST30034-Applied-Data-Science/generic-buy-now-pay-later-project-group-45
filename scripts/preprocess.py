@@ -21,7 +21,7 @@ for i in sys.argv:
 data_directory = directory[1]
 output_directory = directory[2]
 
-#
+# read all file names in the raw data directory
 file_name = os.listdir(data_directory)
 
 
