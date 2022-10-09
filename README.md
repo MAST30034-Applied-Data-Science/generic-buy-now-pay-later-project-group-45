@@ -1,9 +1,13 @@
 # Generic Buy Now, Pay Later Project
-Groups should generate their own suitable `README.md`.
 
-Note to groups: Make sure to read the `README.md` located in `./data/README.md` for details on how the weekly datasets will be released.
+## Group 45
+#### Team Member:
+Aobo Li, Jialiang Shen, Jiqiang Chen, Junkai Zhang, Ying Zhu
 
-Run the code in following order
+**Research Goal:** The research goal is to help the BNPL company to find the best merchants to cooperate with by forecasting the expected revenue of each merchants in the following year. 
+
+**Instruction:**
+Run the code in following order:
 1. Run download.py in script folder, command line in terminal should follow the format of:  
 
 python3 ../generic-buy-now-pay-later-project-group-45/scripts/download.py --path ../generic-buy-now-pay-later-project-group-45/data/tables
@@ -12,12 +16,13 @@ python3 ../generic-buy-now-pay-later-project-group-45/scripts/download.py --path
 
 python3 ../generic-buy-now-pay-later-project-group-45/scripts/preprocess.py --path ../generic-buy-now-pay-later-project-group-45/data/tables --output ../generic-buy-now-pay-later-project-group-45/data/curated
 
-3. Run ranking.py in script folder, command line in terminal should follow the format of: 
+3. Run geoplot.ipynb to produce geospatial plot
+
+4. Run ranking.py in script folder, command line in terminal should follow the format of: 
 
 python3 ../generic-buy-now-pay-later-project-group-45/scripts/ranking.py --path ../generic-buy-now-pay-later-project-group-45/data/curated
 
-(note: .. indicates directory to this project folder, needs to be added, otherwise this script will be wrong)
+(note: ".." is the directory path of this project folder, which need to be modified according to your local repository.)
 
-4. Run plots.ipynb to produce plots used in presentation, visualisation of final ranked merchants
+5. Run plots.ipynb to produce plots used in presentation, visualisation of final ranked merchants
 
-5. Run geoplot.ipynb to produce geospatial plot
