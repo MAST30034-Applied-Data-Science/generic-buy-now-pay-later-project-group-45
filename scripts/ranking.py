@@ -34,12 +34,13 @@ for i in sys.argv:
 
 data_directory = directory[1]
 output_directory = directory[1]+"/rank"
+selected_merchant_directory = directory[1]+"/selected"
 
 
 
 # create directory of rank folder, containing all ranks of merchants
 pathlib.Path(output_directory).mkdir(parents=True, exist_ok=True)
-
+pathlib.Path(selected_merchant_directory).mkdir(parents=True, exist_ok=True)
 
 
 # read curated data
@@ -105,22 +106,33 @@ ranking = ranking.drop("expected_revenue", "fraud_rate", "ap_rate")
 
 # save ranking of all merchants
 ranking.write.mode("overwrite").parquet(output_directory+"/ranking/")
-
+all_selected = ranking.select("name", "merchant_abn").limit(100)
+all_selected.write.mode("overwrite").parquet(selected_merchant_directory+"/top_100_selected/")
 
 # save ranking of household segment
 household_rank = ranking.filter(F.col("business_segment")=="household").orderBy(F.col("true_revenue").desc())
+household_selected = household_rank.select("name", "merchant_abn").limit(10)
+
 household_rank.write.mode("overwrite").parquet(output_directory+"/household_rank/")
+household_selected.write.mode("overwrite").parquet(selected_merchant_directory+"/selected_household_merchant/")
 
 # save ranking of recreation segment
 recreation_rank = ranking.filter(F.col("business_segment")=="recreation").orderBy(F.col("true_revenue").desc())
-recreation_rank.write.mode("overwrite").parquet(output_directory+"/recreation_rank/")
+recreation_selected = recreation_rank.select("name", "merchant_abn").limit(10)
 
+recreation_rank.write.mode("overwrite").parquet(output_directory+"/recreation_rank/")
+recreation_selected.write.mode("overwrite").parquet(selected_merchant_directory+"/selected_recreation_merchant/")
 
 # save ranking of electronic segment
 electronic_rank = ranking.filter(F.col("business_segment")=="electronics").orderBy(F.col("true_revenue").desc())
-electronic_rank.write.mode("overwrite").parquet(output_directory+"/electronic_rank/")
+electronic_selected = electronic_rank.select("name", "merchant_abn").limit(10)
 
+electronic_rank.write.mode("overwrite").parquet(output_directory+"/electronic_rank/")
+recreation_selected.write.mode("overwrite").parquet(selected_merchant_directory+"/selected_electronic_merchant/")
 
 # save ranking of fashion segment
 fashion_rank = ranking.filter(F.col("business_segment")=="fashion").orderBy(F.col("true_revenue").desc())
+fashion_selected = fashion_rank.select("name", "merchant_abn").limit(10)
+
 fashion_rank.write.mode("overwrite").parquet(output_directory+"/fashion_rank/")
+fashion_selected.write.mode("overwrite").parquet(selected_merchant_directory+"/selected_fashion_merchant/")
