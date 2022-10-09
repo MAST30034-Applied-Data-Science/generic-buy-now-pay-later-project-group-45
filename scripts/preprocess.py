@@ -63,7 +63,7 @@ curated_merchant = split_merchants\
             .withColumn("business_area", F.lower(F.col('business_area')))\
             .withColumn("revenue_level", F.lower(F.col('revenue_level')))
 
-
+# tags column are no longer useful
 final_merchant = curated_merchant.drop('tags')
 
 # The concepts are indeed the same but with some extra spaces. so remove extra spaces in "business_area"
@@ -80,9 +80,9 @@ consumer = consumer.join(consumer_detail,on="consumer_id")
 
 ############################## get all transaction data file name ##############################
 
+# transaction data follow the following name format
 transaction_name_pattern = re.compile("transactions_[0-9]{8}_[0-9]{8}_snapshot")
 # create a name list of transaction data
-
 
 transaction_name = []
 transaction_time = []
@@ -104,6 +104,8 @@ transactions = spark.read.parquet(data_directory+"/"+transaction_name[0])
 # get start and end date of this patch of data, and filter the dataset to obtain transaction within this period
 start_date = transaction_time[0][:4]+"-"+transaction_time[0][4:6]+"-"+transaction_time[0][6:]
 end_date = transaction_time[1][:4]+"-"+transaction_time[1][4:6]+"-"+transaction_time[1][6:]
+
+# filter time period of this file so it contains strictly transaction within this period
 transactions = transactions.filter(F.col("order_datetime")<end_date)
 transactions = transactions.filter(F.col("order_datetime")>start_date)
 
@@ -111,7 +113,7 @@ transactions = transactions.filter(F.col("order_datetime")>start_date)
 for i in range(1, len(transaction_name)):
     # read new 6 months data
     data = spark.read.parquet(data_directory+"/"+transaction_name[i])
-    
+
     # get the start and end date of the 6 month transaction
     start_date = transaction_time[i*2][:4]+"-"+transaction_time[i*2][4:6]+"-"+transaction_time[i*2][6:]
     end_date = transaction_time[i*2+1][:4]+"-"+transaction_time[i*2+1][4:6]+"-"+transaction_time[i*2+1][6:]
@@ -120,7 +122,7 @@ for i in range(1, len(transaction_name)):
     data = data.filter(F.col("order_datetime")<end_date)
     data = data.filter(F.col("order_datetime")>start_date)
     
-    # union the monthly transaction
+    # join monthly transaction into one
     transactions = transactions.union(data)
 
 
@@ -146,6 +148,7 @@ with urllib.request.urlopen(ABS_INCOME_URL_STATE) as zipresp:
 census = spark.read.csv(data_directory+"/censusData/2021 Census GCP Postal Areas for AUS/2021Census_G02_AUST_POA.csv", header = True)
 
 census_state = spark.read.csv(data_directory+"/censusData/2021 Census GCP States and Territories for AUS/2021Census_G02_AUST_STE.csv", header = True)
+
 # remove POA prefix to obtain only numeric postcodes
 census = census.withColumn("postcode", F.regexp_replace("POA_CODE_2021", "POA", ""))
 
@@ -179,12 +182,14 @@ full_dataset_filna = data_with_fraud.withColumn("fraud_prob_cons", F.col("fraud_
 full_dataset_filna = full_dataset_filna.withColumn("fraud_prob_merch", F.col("fraud_prob_merch").cast("float")).fillna(0.001)
 
 
+
+
 # there are postcodes that has only three digits
 # adding lead zeros for post code
 
-data_remove_fraud = full_dataset_filna.withColumn('postcode',lpad(full_dataset_filna['postcode'],4,'0'))
+full_dataset_filna = full_dataset_filna.withColumn('postcode',lpad(full_dataset_filna['postcode'],4,'0'))
 
-full_dataset = data_remove_fraud.join(census, on = ["postcode"], how = "left")
+full_dataset = full_dataset_filna.join(census, on = ["postcode"], how = "left")
 
 full_dataset = full_dataset.withColumn('postcode',lpad(full_dataset['postcode'],4,'0'))
 
@@ -219,31 +224,28 @@ dataset_with_null = dataset_with_null.withColumn(
 
 dataset_with_null = dataset_with_null.join(census_state, ['STE_CODE_2021']).drop("STE_CODE_2021","count")
 
-dataset_with_null = data_remove_fraud.join(dataset_with_null, on = ["postcode"], how = "right")
+dataset_with_null = full_dataset_filna.join(dataset_with_null, on = ["postcode"], how = "right")
 
 full_dataset = full_dataset.union(dataset_with_null)
 
 full_dataset = full_dataset.drop("order_id")
 
 
-# remove some of the merchants that have little transaction and sales amount
-
-
+# remove some of the merchants that have little transaction and sales amount, as the transaction amount is too small to consider BNPL firm effects, even though their sales amount is high
 count_sdf = full_dataset.groupBy(F.col('merchant_abn')).count()
 count_df = count_sdf.toPandas()
 count = count_df['count']
 least_freq_merchants = count_df[count_df['count'] < 10]
 
-
+# calculate total transaction amount of each merchant, those with less than 50000 may not be considered.
 amount = full_dataset.groupBy(F.col('merchant_abn')).sum('dollar_value')
 amount_df = amount.toPandas()
 least_amount_merchants = amount_df[amount_df['sum(dollar_value)'] < 50000]
 
 
+# if a merchant has less than 10 transaction and less than 50000 of transaction value, it will not be considered
 least_merchants = pd.merge(least_freq_merchants, least_amount_merchants)
 removed_merchants = least_merchants["merchant_abn"].to_list()
-
-
 clean_full = full_dataset.filter(~full_dataset.merchant_abn.isin(removed_merchants))
 
 
@@ -270,6 +272,7 @@ allocation_df = allocation_df.merge(turnover, on="business_area_type", how="left
 
 # convert pandas to pyspark dataframe to merge with clean full dataset
 allocation_sdf=spark.createDataFrame(allocation_df)
+
 # add the business_area_type into clean_full_dataset
 clean_full_dataset = clean_full.join(allocation_sdf, clean_full.business_area == allocation_sdf.business_area).drop(allocation_sdf.business_area)
 
@@ -306,7 +309,6 @@ agg_df = agg_df.join(undisclosed_percentage, on="merchant_abn")
 # add the total transaction count into aggregated dataframe and rename the column name
 agg_df = agg_df.join(total_count, on="merchant_abn")
 agg_df = agg_df.withColumnRenamed("sum(count)","total_transactions_count")
-
 
 
 ######################### calculate the average of census data ####################################
@@ -363,23 +365,25 @@ agg_df = agg_df.join(turnover_df, on="business_area_type", how="left")
 ################## add fraud rate of each merchant #################
 # select only fraud column
 full_fraud_data = clean_full_dataset.select("merchant_abn", "fraud_prob_cons", "fraud_prob_merch")
+
+# since transactions that is not fraud is allocated as 0.001 probability, if consumer and merchant fraud probability is 0.001, then this transaction is not fraud, anything else will be considered as a fraud
 full_fraud_data = full_fraud_data.withColumn("fraud", F.when((F.col("fraud_prob_cons") > 0.0011) | (F.col("fraud_prob_merch") > 0.0011),1).otherwise(0))
 fraud = full_fraud_data.select("merchant_abn", "fraud")
 
+
 fraud_count = fraud.filter(F.col("fraud")==1).groupby("merchant_abn", "fraud").count().orderBy("merchant_abn")
+
 fraud_count = fraud_count.select("merchant_abn", "count")
 total_merchant_transaction = fraud.groupby("merchant_abn").count().orderBy("merchant_abn")
 total_merchant_transaction = total_merchant_transaction.withColumnRenamed("count","total_transaction")
 
 fraud = fraud_count.join(total_merchant_transaction, on="merchant_abn").orderBy("merchant_abn")
+
+# calculate fraud rate (proportion of potential fraud transactions) for each merchant
 fraud = fraud.withColumn("fraud_rate", F.col("count")/F.col("total_transaction"))
 fraud = fraud.drop("count", "total_transaction")
-
 agg_df = agg_df.join(fraud, on="merchant_abn")
-
 agg_df = agg_df.drop("fraud_prob_cons", "fraud_prob_merch", ).distinct()
 
-
-
-# save dataset
+# save preprocessed dataset
 agg_df.write.mode("overwrite").parquet(output_directory+"/final_dataset/")
