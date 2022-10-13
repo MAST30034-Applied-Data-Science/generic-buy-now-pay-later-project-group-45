@@ -36,6 +36,7 @@ data_directory = directory[1]
 output_directory = directory[1]+"/rank"
 selected_merchant_directory = directory[1]+"/selected"
 
+date = str(sys.argv[-1])
 
 
 # create directory of rank folder, containing all ranks of merchants
@@ -52,7 +53,7 @@ data = spark.read.parquet(data_directory+'/final_dataset')
 clean_transaction = spark.read.parquet(data_directory+'/clean_full_dataset')
 
 # most recent year starts at 2021.08.28
-annual_transaction_count = clean_transaction.filter(F.col("order_datetime")>"2021-08-27")
+annual_transaction_count = clean_transaction.filter(F.col("order_datetime")>date)
 annual_merchant_transaction = annual_transaction_count.groupby("merchant_abn").count().select("merchant_abn", "count")
 full_data = data.join(annual_merchant_transaction, on="merchant_abn", how="left")
 
