@@ -22,8 +22,9 @@ python3 ../generic-buy-now-pay-later-project-group-45/scripts/preprocess.py --pa
 
 python3 ../generic-buy-now-pay-later-project-group-45/scripts/ranking.py --path ../generic-buy-now-pay-later-project-group-45/data/curated dddd-dd-dd
 
-(note: dddd-dd-dd is the most recent annual transaction data start date, can also put other dates if period of data do not exceed a year)
+(note: dddd-dd-dd is the most recent annual transaction data start date, can also put other dates if period of data do not exceed a year, e.g: most recent data end in 2022-08-28, then type in 2021-08-28)
+
 (note: ".." is the directory path of this project folder, which need to be modified according to your local repository.)
 
-5. Run plots.ipynb to produce plots used in presentation, visualisation of final ranked merchants
+5. Run plots.ipynb to produce plots used in presentation and visualisation of final ranked merchants
 
